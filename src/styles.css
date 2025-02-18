@@ -1,0 +1,20 @@
+/*
+
+This CSS file will be included with your plugin, and
+available in the app when your plugin is enabled.
+
+If your plugin does not need CSS, delete this file.
+
+*/
+
+.prompt-input-cta {
+	padding: var(--size-4-3);
+	gap: var(--size-4-1);
+	display: flex;
+}
+.only-phone {
+	display: none;
+}
+.is-phone .only-phone {
+	display: initial;
+}
