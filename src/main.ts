@@ -1,5 +1,4 @@
 /* eslint-disable @typescript-eslint/no-non-null-assertion */
-/* eslint-disable @typescript-eslint/no-deprecated */
 import {
 	App,
 	FileView,
@@ -8,7 +7,6 @@ import {
 	Notice,
 	TFile,
 	TFolder,
-	View,
 	setIcon,
 } from "obsidian";
 
@@ -29,7 +27,9 @@ import { DEFAULT_SETTINGS, MainPluginSettingsTab } from "./settings";
 const allFilesFilter = (file: TFile): boolean =>
 	file.extension === "md" || file.extension === "dir";
 
-export default class Main extends PluginWithSettings(DEFAULT_SETTINGS) {
+export default class CrosslinkAdvanced extends PluginWithSettings(
+	DEFAULT_SETTINGS,
+) {
 	override async onload() {
 		await this.initSettings(MainPluginSettingsTab);
 		this.addCommand({
@@ -158,9 +158,8 @@ export default class Main extends PluginWithSettings(DEFAULT_SETTINGS) {
 		}
 	}
 	private getCurrentFile() {
-		const view = this.app.workspace.activeLeaf?.view;
-		const isFileView = (v: View): v is FileView => "file" in v;
-		if (!view || !isFileView(view)) return null;
+		const view = this.app.workspace.getActiveViewOfType(FileView);
+		if (!view) return null;
 
 		return view.file;
 	}
@@ -447,12 +446,15 @@ export class FileAndDirChooser extends FuzzySuggestModal<TFile> {
 		return this.inputEl.value;
 	}
 	private get hiddenChooser() {
-		// eslint-disable-next-line @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-explicit-any
-		const chooser = (this as any).chooser as {
-			selectedItem: number | null;
-			values: { item: TFile }[] | null;
-			suggestions: unknown[];
-		};
+		const chooser = (
+			this as unknown as {
+				chooser: {
+					selectedItem: number | null;
+					values: { item: TFile }[] | null;
+					suggestions: unknown[];
+				};
+			}
+		).chooser;
 		return chooser;
 	}
 
