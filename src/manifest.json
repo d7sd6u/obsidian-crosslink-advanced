@@ -3,9 +3,12 @@
 	"name": "Crosslink Advanced",
 	"version": "1.0.0",
 	"minAppVersion": "0.15.0",
-	"description": "Allows to tag files using folders and symlinks system.",
+	"description": "Tag files using folders and symlinks system (ftags).",
 	"author": "d7sd6u",
 	"authorUrl": "https://github.com/d7sd6u",
-	"fundingUrl": "https://ko-fi.com/d7sd6u",
+	"fundingUrl": {
+		"Ko-fi": "https://ko-fi.com/d7sd6ug",
+		"GitHub Sponsor": "https://github.com/sponsors/d7sd6u"
+	},
 	"isDesktopOnly": false
 }
