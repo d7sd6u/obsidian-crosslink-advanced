@@ -1,10 +1,10 @@
 /* eslint-disable @typescript-eslint/no-non-null-assertion */
 import {
 	App,
-	FileView,
 	FuzzyMatch,
 	FuzzySuggestModal,
 	Notice,
+	Platform,
 	TFile,
 	TFolder,
 	setIcon,
@@ -32,11 +32,15 @@ export default class CrosslinkAdvanced extends PluginWithSettings(
 ) {
 	override async onload() {
 		await this.initSettings(MainPluginSettingsTab);
+
 		this.addCommand({
 			id: "add-ftag",
 			name: "Add ftag to the note",
 			icon: "folder-symlink",
-			callback: this.openAddFtagModal.bind(this),
+			checkCallback: this.getCheckCallbackWithValue(
+				() => this.app.workspace.getActiveFile(),
+				this.openAddFtagModal,
+			),
 		});
 
 		this.addCommand({
@@ -50,21 +54,30 @@ export default class CrosslinkAdvanced extends PluginWithSettings(
 			id: "rename-and-keep-as-alias",
 			name: "Rename swapping for alias",
 			icon: "edit",
-			callback: this.renameAndKeepAsAlias.bind(this),
+			checkCallback: this.getCheckCallbackWithValue(
+				() => this.app.workspace.getActiveFile(),
+				this.renameAndKeepAsAlias,
+			),
 		});
 
 		this.addCommand({
 			id: "remove-inbox-tag",
 			name: "Remove inbox tag",
 			icon: "combine",
-			callback: this.removeInboxTag.bind(this),
+			checkCallback: this.getCheckCallbackWithValue(
+				this.getCurrentInboxedFileAndItsNonInboxTag,
+				this.removeInboxTag,
+			),
 		});
 
 		this.addCommand({
 			id: "create-note-as-child",
 			name: "Create new note as child",
 			icon: "corner-down-right",
-			callback: this.createNoteAsChild.bind(this),
+			checkCallback: this.getCheckCallbackWithValue(
+				() => this.app.workspace.getActiveFile(),
+				this.createNoteAsChild,
+			),
 		});
 
 		this.registerEvent(
@@ -88,9 +101,7 @@ export default class CrosslinkAdvanced extends PluginWithSettings(
 		);
 	}
 
-	private async renameAndKeepAsAlias(file = this.getCurrentFile()) {
-		if (!file || file.extension !== "md") return;
-
+	private renameAndKeepAsAlias = async (file: TFile) => {
 		const currentName = file.getShortName();
 
 		await this.app.fileManager.promptForFileRename(file);
@@ -111,15 +122,13 @@ export default class CrosslinkAdvanced extends PluginWithSettings(
 			v.aliases ||= [];
 			v.aliases.push(currentName);
 		});
-	}
+	};
 
-	public async removeInboxTag() {
+	private getCurrentInboxedFileAndItsNonInboxTag = () => {
 		const indexFile = this.app.workspace.getActiveFile();
 		const currentFile = movableFile(indexFile);
 		if (!currentFile || !indexFile) return;
-
 		if (currentFile.parent?.path !== this.settings.inbox) return;
-
 		const tags = this.app.vault
 			.getFiles()
 			.filter(getFileIsTargetFileTagFilter(currentFile, this.app));
@@ -127,18 +136,28 @@ export default class CrosslinkAdvanced extends PluginWithSettings(
 		const nonInboxTag = tags.find(
 			(v) => movableFile(v).path !== this.settings.inbox,
 		);
+		if (!nonInboxTag) return;
+		return { nonInboxTag, indexFile, currentFile };
+	};
 
-		if (nonInboxTag) {
-			await this.removeFileSymlinkTo(indexFile, nonInboxTag);
-			const { folder } = await forceFolder(nonInboxTag, this.app);
-			await this.app.fileManager.renameFile(
-				currentFile,
-				folderPrefix(folder) + currentFile.name,
-			);
-		}
-	}
+	private removeInboxTag = async ({
+		indexFile,
+		currentFile,
+		nonInboxTag,
+	}: {
+		indexFile: TFile;
+		currentFile: TFile | TFolder;
+		nonInboxTag: TFile;
+	}) => {
+		await this.removeFileSymlinkTo(indexFile, nonInboxTag);
+		const { folder } = await forceFolder(nonInboxTag, this.app);
+		await this.app.fileManager.renameFile(
+			currentFile,
+			folderPrefix(folder) + currentFile.name,
+		);
+	};
 
-	public openRandomInboxItem() {
+	private openRandomInboxItem() {
 		const res = this.app.vault.getAbstractFileByPath(this.settings.inbox);
 		const currentFile = this.app.workspace.getActiveFile();
 		if (res instanceof TFolder) {
@@ -155,17 +174,13 @@ export default class CrosslinkAdvanced extends PluginWithSettings(
 			if (chosen) {
 				void this.app.workspace.openLinkText(chosen.path, "/");
 			}
+		} else if (!res) {
+			new Notice(this.settings.inbox + " does not exist!");
+		} else {
+			new Notice(this.settings.inbox + " is a file!");
 		}
 	}
-	private getCurrentFile() {
-		const view = this.app.workspace.getActiveViewOfType(FileView);
-		if (!view) return null;
-
-		return view.file;
-	}
-	public openAddFtagModal() {
-		const editedFile = this.getCurrentFile();
-		if (!editedFile) return;
+	private openAddFtagModal = (editedFile: TFile) => {
 		const getDefaultPlaceholder = () =>
 			`Choose tags from all files for "${editedFile.basename}"`;
 
@@ -207,7 +222,7 @@ export default class CrosslinkAdvanced extends PluginWithSettings(
 		});
 		modal.setPlaceholder(getDefaultPlaceholder());
 		modal.open();
-	}
+	};
 
 	private addFtag = async (file: TFile, ftag: TFile) => {
 		if (movableFile(file).parent?.path === this.settings.inbox) {
@@ -229,9 +244,7 @@ export default class CrosslinkAdvanced extends PluginWithSettings(
 		}
 	};
 
-	public async createNoteAsChild() {
-		const currentFile = this.app.workspace.getActiveFile();
-		if (!currentFile) return;
+	private createNoteAsChild = async (currentFile: TFile) => {
 		const { folder } = await forceFolder(currentFile, this.app);
 		const note = await this.app.fileManager.createNewMarkdownFile(
 			folder,
@@ -242,7 +255,7 @@ export default class CrosslinkAdvanced extends PluginWithSettings(
 			active: true,
 			eState: { rename: "all" },
 		});
-	}
+	};
 
 	private async removeFileSymlinkTo(file: TFile, forcedIndex: TFile) {
 		await this.app.fileManager.processFrontMatter(
@@ -345,24 +358,23 @@ export class FileAndDirChooser extends FuzzySuggestModal<TFile> {
 		const cta =
 			this.inputEl.parentElement!.querySelector(".prompt-input-cta");
 
+		cta?.addClass("crosslink-advanced-custom-prompt-input-cta");
+
 		const addButton = (
 			icon: string,
 			text: string,
 			cb: (e: MouseEvent) => void,
 			phoneOnly?: boolean,
 		) => {
-			const button = createEl(
-				"button",
-				"clickable-icon " + (phoneOnly ? "only-phone" : ""),
-				(e) => {
-					setIcon(e, icon);
-					e.setAttribute("aria-label", text);
-					e.onclick = (e) => {
-						e.stopPropagation();
-						cb(e);
-					};
-				},
-			);
+			if (!Platform.isMobileApp && phoneOnly) return;
+			const button = createEl("button", "clickable-icon", (e) => {
+				setIcon(e, icon);
+				e.setAttribute("aria-label", text);
+				e.onclick = (e) => {
+					e.stopPropagation();
+					cb(e);
+				};
+			});
 			cta?.appendChild(button);
 		};
 
