@@ -458,15 +458,19 @@ export class FileAndDirChooser extends FuzzySuggestModal<TFile> {
 		return this.inputEl.value;
 	}
 	private get hiddenChooser() {
-		const chooser = (
-			this as unknown as {
-				chooser: {
-					selectedItem: number | null;
-					values: { item: TFile }[] | null;
-					suggestions: unknown[];
-				};
-			}
-		).chooser;
+		interface WithChooser {
+			chooser: {
+				selectedItem: number | null;
+				values:
+					| {
+							item: TFile;
+					  }[]
+					| null;
+				suggestions: unknown[];
+			};
+		}
+
+		const chooser = (this as unknown as WithChooser).chooser;
 		return chooser;
 	}
 
